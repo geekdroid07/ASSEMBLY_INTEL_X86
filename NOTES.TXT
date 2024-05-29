@@ -1,0 +1,528 @@
+DEBUGGER:
+for debugging there are four steps:
+
+Break:
+    we can use the break or b command along with the address or function name we want to break at.
+    b _start or b *0x40100a
+
+Examine:
+    To manually examine any of the addresses or registers or examine any other, we can use the x command in the format of x/FMT ADDRESS.
+    x/4ig $rip or x/wx 0x401000
+    
+    We can also examine a variable stored at a specific memory address:
+    x/s 0x402000
+
+Step:
+    The third step of debugging is stepping through the program one instruction or line of code at a time.
+    si or si 3 || next || continue
+
+Modify: 
+    The final step of debugging is modifying values in registers and addresses at a certain point of execution. This helps us in seeing how this would affect the execution of the program.
+    we have to provide the type/size of the new value, the location to be stored, and the value we want to use:
+    
+    patch string 0x402000 "Patched!\\x0a"
+
+
+
+
+
+
+
+Data Movement:
+The main Data Movement instructions are:
+mov	Move data or load immediate data	mov rax, 1 -> rax = 1
+lea	Load an address pointing to the value	lea rax, [rsp+5] -> rax = rsp+5
+xchg	Swap data between two registers or addresses	xchg rax, rbx -> rax = rbx, rbx = rax
+
+Moving Data:
+In assembly, moving data does not affect the source operand. So, we can consider mov as a copy function, rather than an actual move.
+mov rax, 1
+
+Loading Data:
+We have to remember here that the size of the loaded data depends on the size of the destination register.
+For example, in the above mov rax, 1 instruction, since we used the 64-bit register rax, it will be moving a 64-bit representation of the number 1 (i.e. 0x00000001), which is not very efficient.
+
+This is why it is more efficient to use a register size that matches our data size.
+if we use mov al, 1, since we are moving 1-byte (0x01) into a 1-byte register (al), which is much more efficient.
+
+The xchg instruction will swap the data between the two registers:
+xchg rbx, rax
+
+Address Pointers:
+Another critical concept to understand is using pointers. In many cases, we would see that the register or address we are using does not immediately contain
+the final value but contains another address that points to the final value. This is always the case with pointer registers, like rsp, rbp, and rip,
+but is also used with any other register or memory address.
+
+Moving Pointer Values:
+To move the actual value, we will have to use square brackets [], which in x86_64 assembly and Intel syntax means load value at address. 
+mov rax, [rsp]
+
+We can use square brackets to compute an address offset relative to a register or another address. For example, we can do mov rax, 
+[rsp+10] to move the value stored 10 address away from rsp.
+mov rax, [rsp+10]
+
+When using [], we may need to set the data size before the square brackets, like byte or qword. However, in most cases, 
+nasm will automatically do that for us. We can see above that the final instruction is actually mov rax, QWORD PTR [rsp]. 
+We also see that nasm also added PTR to specify moving a value from a pointer.
+
+Loading Value Pointers:
+In some instances, we need to load the address of a value to a certain register rather than directly load the value in that register. 
+This is usually done when the data is large and would not fit in one register, so the data is placed on the stack or in the heap, 
+and a pointer to its location is stored in the register.
+
+For example, the write syscall we used in our HelloWorld program requires a pointer to the text to be printed, 
+instead of directly providing the text, which may not fit in its entirety in the register, as the register is only 64-bits or 8 bytes.
+
+if we wanted to load a direct pointer to a variable or a label, we can still use mov instructions. 
+mov will store this pointer to the destination address. For example, both mov rax, rsp and lea rax, [rsp] will do the same thing of storing
+the pointer to message at rax.
+
+However, if we wanted to load a pointer with an offset (i.e., a few addresses away from a variable or an address), we should use lea.
+lea rax, [rsp+10]
+
+lea rax, [rsp+10] load the address that is 10 addresses away from rsp (in other words, 10 addresses away from top of stack).
+
+Note that if we use mov rax, [rsp+10], it will actually move the value at [rsp+10] to rax, as discussed earlier. 
+We cannot move a pointer with an offset using mov.
+
+
+
+
+
+
+
+
+Arithmetic Instructions:
+we can perform various mathematical computations on data stored in registers and memory addresses. We will split arithmetic instructions 
+into two types: instructions that take only one operand (Unary), instructions that take two operands (Binary).
+
+UNARY: 
+inc	Increment by 1	inc rax -> rax++ or rax += 1 -> rax = 2
+dec	Decrement by 1	dec rax -> rax-- or rax -= 1 -> rax = 0
+
+
+BINARY:
+Instruction	            Description                                                         Example
+add	                Add both operands	                                        add rax, rbx -> rax = 1 + 1 -> 2
+sub	                Subtract Source from Destination (i.e rax = rax - rbx)	    sub rax, rbx -> rax = 1 - 1 -> 0
+imul	            Multiply both operands	                                    imul rax, rbx -> rax = 1 * 1 -> 1
+
+Note that in all of the above instructions, the result is always stored in the destination operand, while the source operand is not affected.
+
+Bitwise Instructions:
+Bitwise Instructions are instructions that work on the bit level.
+
+Instruction	                            Description                                                                     Example
+not	                Bitwise NOT (invert all bits, 0->1 and 1->0)	                                    not rax -> NOT 00000001 -> 11111110
+and	                Bitwise AND (if both bits are 1 -> 1, if bits are different -> 0)	                and rax, rbx -> 00000001 AND 00000010 -> 00000000
+or	                Bitwise OR (if either bit is 1 -> 1, if both are 0 -> 0)	                        or rax, rbx -> 00000001 OR 00000010 -> 00000011
+xor	                Bitwise XOR (if bits are the same -> 0, if bits are different -> 1)	                xor rax, rbx -> 00000001 XOR 00000010 -> 00000011
+
+Each of these instructions makes the specified instruction on each bit of the value. For example, 
+not will go to each bit and invert it, turning 0's to 1's and turning 1's to 0's. 
+
+Likewise, both the and/or instructions work on each bit, and perform the AND/OR gate on each one, as shown in the examples above. 
+Each of these instructions has its use cases in Assembly.
+
+The xor instruction has various use cases, but since it zeros similar bits, 
+we can use it to turn any value to 0 by xoring a value with itself. We need to put, using xor on any register with itself will turn it into 0.
+For example, if we want to turn the rax register to 0, the most efficient way to do it is xor rax, rax, which will make rax = 0. 
+This is simply because all bits of rax are similar, and so xor will turn all of them to 0.
+
+
+
+
+
+
+
+
+LOOPS:
+A loop in assembly is a set of instructions that repeat for rcx times. 
+Control instructions allow us to change the flow of the program and direct it to another line. 
+
+Instruction	                    Description                                                     Example
+mov rcx, x	            Sets loop (rcx) counter to x	                                    mov rcx, 3
+loop	                Jumps back to the start of loop until counter reaches 0	            loop exampleLoop
+
+
+
+
+
+
+
+
+UNCONDITIONAL BRANCHING:
+Branching Instructions are general instructions that allow us to jump to any point in the program if a specific condition is met.
+
+JMP instruction:
+The jmp instruction jumps the program to the label or specified location in its operand so that the program's execution is continued there. 
+Once a program's execution is directed to another location, it will continue processing instructions from that point. 
+
+jmp [name]
+
+
+
+
+
+
+
+CONDITIONAL BRANCHING:
+Conditional Branching instructions are only processed when a specific condition is met, based on the Destination and Source operands. 
+A conditional jump instruction has multiple varieties as Jcc, where cc represents the Condition Code. 
+
+The following are some of the main condition codes:
+
+Instruction	             Condition	                Description
+jz	                     D = 0	            Destination equal to Zero
+jnz	                     D != 0	            Destination Not equal to Zero
+js	                     D < 0	            Destination is Negative
+jns	                     D >= 0	            Destination is Not Negative (i.e. 0 or positive)
+jg	                     D > S	            Destination Greater than Source
+jge	                     D >= S	            Destination Greater than or Equal Source
+jl	                     D < S	            Destination Less than Source
+jle	                     D <= S	            Destination Less than or Equal Source
+
+cmovz rax, rbx 
+
+RFLAGS Register:
+The RFLAGS register consists of 64-bits like any other register. However, this register does not hold values but holds flag bits instead. 
+Each bit 'or set of bits' turns to 1 or 0 depending on the value of the last instruction.
+
+When ZF is on (i.e. is 1), it's referred to as Zero ZR, and when it's off (i.e. is 0), it's referred to as Not Zero NZ. 
+This naming may match the condition code used in the instructions, like jnz which jumps with NZ. But to avoid any confusion.
+
+The flags we would mostly be interested in are:
+
+The Carry Flag CF: Indicates whether we have a float.
+The Parity Flag PF: Indicates whether a number is odd or even.
+The Zero Flag ZF: Indicates whether a number is zero.
+The Sign Flag SF: Indicates whether a register is negative.
+
+
+
+CMP:
+The Compare instruction cmp simply compares the two operands, by subtracting the second operand from first operand (i.e. D1 - S2), 
+and then sets the necessary flags in the RFLAGS register. For example, if we use cmp rbx, 10, 
+then the compare instruction would do 'rbx - 10', and set the flags based on the result.
+
+Instruction	                                            Description	                                                                Example
+cmp	                        Sets RFLAGS by subtracting second operand from first operand (i.e. first - second)	            cmp rax, rbx -> rax - rbx
+
+Note: In a cmp instruction, the first operand (i.e. the Destination) must be a register, 
+while the other can be a register, a variable, or an immediate value.
+
+
+
+
+
+
+
+THE STACK:
+The stack is a segment of memory allocated for the program to store data in, and it is usually used to store data and then retrieve them back temporarily. 
+The top of the stack is referred to by the Top Stack Pointer rsp, while the bottom is referred to by the Base Stack Pointer rbp.
+
+Instruction	                                    Description	                                                                Example
+push	                            Copies the specified register/address to the top of the stack	                        push rax
+pop	                                Moves the item at the top of the stack to the specified register/address	            pop rax
+
+The stack has a Last-in First-out (LIFO) design, which means we can only pop out the last element pushed into the stack. For example, 
+if we push rax into the stack, the top of the stack would now be the value of rax we just pushed. If we push anything on top of it, 
+we would have to pop them out of the stack until that value of rax reaches the top of the stack, then we can pop that value back to rax.
+
+Usage With Functions/Syscalls:
+We will primarily be pushing data from registers into the stack before we call a function or call a syscall, 
+and then restore them after the function and the syscall. This is because functions and syscalls usually use the registers for their processing,
+and so if the values stored in the registers will get changed after a function call or a syscall, we will lose them.
+
+PUSH/POP:
+To push value into the stack, we can use its name as the operand, as in push rax, and the value will be copied to the top of the stack. 
+When we want to retrieve that value, we first need to be sure that it is on the top of the stack, and then we can specify the storage location as the operand, 
+as in pop rax, after which the value will be moved to rax, and will be removed from the top of the stack.
+
+
+
+SYSCALLS:
+Even though we are talking directly to the CPU through machine instructions in Assembly, we do not have to invoke every type of
+command using basic machine instructions only. Programs regularly use many kinds of operations. 
+The Operating System can help us through syscalls to not have to execute these operations every time manually.
+
+For example, suppose we need to write something on the screen, without syscalls. In that case, 
+we will need to talk to the Video Memory and Video I/O, resolve any encoding required, send our input to be printed, 
+and wait for the confirmation that it has been printed. As expected, if we had to do all of this to print a single character, 
+it would make assembly codes much longer.
+
+
+
+Linux Syscall
+A syscall is like a globally available function written in C, provided by the Operating System Kernel. 
+A syscall takes the required arguments in the registers and executes the function with the provided arguments. 
+For example, if we wanted to write something to the screen, we can use the write syscall, provide the string to be printed and other 
+required arguments, and then call the syscall to issue the print.
+
+There are many available syscalls provided by the Linux Kernel, and we can find a list of them and the syscall number of
+each one by reading the unistd_64.h system file:
+
+cat /usr/include/x86_64-linux-gnu/asm/unistd_64.h
+
+Note: With 32-bit x86 processors, the syscall numbers are in the unistd_32.h file.
+
+Syscall Function Arguments:
+To find the arguments accepted by a syscall, we can use the man -s 2 command with the syscall name from the above list:
+man -s 2 write
+
+
+Syscall Calling Convention:
+Now that we understand how to locate various syscall and their arguments let's start learning how to call them. To call a syscall, we have to:
+
+Save registers to stack
+Set its syscall number in rax
+Set its arguments in the registers
+Use the syscall assembly instruction to call it
+
+We usually should save any registers we use to the stack before any function call or syscall.
+
+
+Syscall Number:
+mov rax, 1
+Now, if we reach the syscall instruction, the Kernel would know which syscall we are calling.
+
+Syscall Arguments:
+The x86_64 architecture's calling convention specifies in which register each argument should be placed (e.g., first arg should be in rdi). 
+All functions and syscalls should follow this standard and take their arguments from the corresponding registers. 
+
+
+Description	                        64-bit Register	                            8-bit Register
+Syscall Number/Return value	            rax	                                        al
+Callee Saved	                        rbx	                                        bl
+1st arg	                                rdi	                                        dil
+2nd arg	                                rsi	                                        sil
+3rd arg	                                rdx	                                        cl
+4th arg	                                rcx	                                        bpl
+5th arg	                                r8                                          r8b
+6th arg	                                r9	                                        r9b
+
+
+As we can see, we have a register for each of the first 6 arguments. Any additional arguments can be stored 
+in the stack (though not many syscalls use more than 6 arguments.).
+
+Note: rax is also used for storing the return value of a syscall or a function. So, if we were expecting 
+to get a value back from a syscall/function, it will be in rax.
+
+
+Going back to the write syscall function, we should pass: fd, pointer, and length. We can do so as follows:
+
+rdi -> 1 (for stdout)
+rsi -> 'Fibonacci Sequence:\n' (pointer to our string)
+rdx -> 20 (length of our string)
+
+section .data
+    message db "Fibonacci Sequence:", 0x0a
+
+Note how we added 0x0a after our string, to add a new line character.
+
+
+The message label is a pointer to where our string will be stored in the memory. So, we can use it as our second argument. 
+So, our final syscall code should be as follows:
+
+mov rax, 1       ; rax: syscall number 1
+mov rdi, 1      ; rdi: fd 1 for stdout
+mov rsi,message ; rsi: pointer to message
+mov rdx, 20      ; rdx: print length of 20 bytes
+
+Tip: If we ever needed to create a pointer to a value stored in a register, we can simply push it to the stack, and then use the rsp pointer to point to it.
+
+We may also use a dynamically calculated length variable by using equ:
+length equ $-message
+
+
+
+PROCEDURES:
+As our code grows in complexity, we need to start refactoring our code to make more efficient use of the instructions and make it easier to read and understand. 
+A common way to do so is through the use of functions and procedures. 
+
+A procedure (sometimes referred to as a subroutine) is usually a set of instructions we want to execute at specific points in the program. 
+So instead of reusing the same code, we define it under a procedure label and call it whenever we need to use it. 
+This way, we only need to write the code once but can use it multiple times. Furthermore, we can use procedures to split a 
+larger and more complex code into smaller, simpler segments.
+
+
+
+
+
+
+CALL/RET:
+Once the procedure is executed, we should end it with a ret instruction to return to the point we were at before jumping to the procedure. 
+The ret instruction pops the address at the top of the stack into rip, so the program's next instruction is restored to what it was before jumping to the procedure.
+
+The ret instruction plays an essential role in Return-Oriented Programming (ROP), an exploitation technique usually used with Binary Exploitation.
+
+Instruction	                                    Description	                                                                    Example
+call                            push the next instruction pointer rip to the stack, then jumps to the specified procedure	    call printMessage
+ret	                            pop the address at rsp into rip, then jump to it	                                            ret
+
+
+
+
+
+
+
+
+
+Functions Calling Convention:
+Functions are a form of procedures. However, functions tend to be more complex and should be expected to use the stack and all registers fully. 
+So, we can't simply call a function as we did with procedures. Instead, functions have a Calling Convention to properly set up before being called.
+
+There are four main things we need to consider before calling a function:
+
+Save Registers on the stack (Caller Saved)
+Pass Function Arguments (like syscalls)
+Fix Stack Alignment
+Get Function's Return Value (in rax)
+
+This is relatively similar to calling a syscall, and the only difference with syscalls is that we have to store the syscall number in rax, 
+while we can call functions directly with call function. Furthermore, with syscall we don't have to worry about Stack Alignment.
+
+
+Writing Functions:
+All of the above points are from a caller point of view, as we call a function. When it comes to writing a function, 
+there are different points to consider, which are:
+
+Saving Callee Saved registers (rbx and rbp)
+Get arguments from registers
+Align the Stack
+Return value in rax
+
+These points are usually made at the beginning, and the end of the function and are called a function's prologue and epilogue. 
+They allow functions to be called without worrying about the current state of the stack or the registers.
+
+
+Using External Functions:
+
+there are external functions we can use to print the current number without having to convert it. 
+The libc library of functions used for C programs provides many functionalities that we can utilize without rewriting everything from scratch. 
+The printf function in libc accepts the printing format, so we can pass it the current Fibonacci number and tell it to print it as an integer, 
+and it'll do the conversion automatically. Before we can use a function from libc, we have to import it first and then specify 
+the libc library for dynamic linking when linking our code with ld.
+
+
+printf:
+outFormat db  "%d", 0x0a, 0x00
+
+mov rdi, outFormat  ; set 1st argument (Print Format)
+
+Note: We ended the format with a null character 0x00, as this is the string terminator in printf, and we must terminate any string with it.
+
+
+
+
+Stack Alignment:
+Whenever we want to make a call to a function, we must ensure that the Top Stack Pointer (rsp)
+is aligned by the 16-byte boundary from the _start function stack.
+
+This means that we have to push at least 16-bytes (or a multiple of 16-bytes) to the stack before making a call to ensure functions 
+have enough stack space to execute correctly. This requirement is mainly there for processor performance efficiency. 
+Some functions (like in libc) are programed to crash if this boundary is not fixed to ensure performance efficiency. 
+
+Each procedure call adds an 8-byte address to the stack, which is then removed with ret
+Each push adds 8-bytes to the stack as well
+
+sub rsp, 16
+call function
+add rsp, 16
+
+If we had 8 bytes pushed, we can bring the boundary up to 16 by subtracting 8 from rsp.
+
+This may be a bit confusing, but the critical thing to remember is that we should have 16-bytes (or a multiple of 16) on top of the stack before making a call. 
+We can count the number of (unpoped) push instructions and (unreturned) call instructions, and we will get how many 8-bytes have been pushed to the stack.
+
+
+Dynamic Linker:
+nasm -f elf64 fib.s &&  ld fib.o -o fib -lc --dynamic-linker /lib64/ld-linux-x86-64.so.2 && ./fib
+
+
+
+
+
+
+
+
+
+
+
+
+we must set a buffer space for the input storage. As we mentioned in the Processor Architecture section, 
+uninitialized buffer space must be stored in the .bss memory segment. So, at the beginning of our assembly code, 
+we must add it under the .bss label, and use resb 1 to tell nasm to reserve 1 byte of buffer space, as follows:
+
+section .bss
+    userInput resb 1
+
+
+Note: We used [userInput] instead of userInput, as we wanted to compare with the final value, and not with the pointer address as mov rax, [rsp].
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+SHELLCODE:
+We know that each executable binary is made of machine instructions written in Assembly and then assembled into machine code. 
+A shellcode is the hex representation of a binary's executable machine code.
+
+
+Assembly to Machine Code:
+To understand how shellcodes are generated, we must first understand how each instruction is converted into a machine code. 
+Each x86 instruction and each register has its own binary machine code (usually represented in hex), 
+which represents the binary code passed directly to the processor to tell it what instruction to execute (through the Instruction Cycle.)
+
+Remember: Assembly language is made for human readability, and the processor cannot understand it without being converted into machine code. 
+
+pwn asm 'push rax'  -c 'amd64'
+
+pwn disasm '50' -c 'amd64'
+
+geekdroid@htb[/htb]$ python3
+
+>>> from pwn import *
+>>> file = ELF('helloworld')
+
+>>> file.section(".text").hex()
+'48be0020400000000000bf01000000ba12000000b8010000000f05b83c000000bf000000000f05'
+
+
+
+
+
+
+Remove NULL
+NULL characters (or 0x00) are used as string terminators in assembly and machine code, and so if they are encountered, they will cause issues and 
+may lead the program to terminate early. So, we must ensure that our shellcode does not contain any NULL bytes 00.
+
+
+pwn shellcraft -l 'amd64.linux'
+
+pwn shellcraft amd64.linux.sh
+
+msfvenom -l payloads | grep 'linux/x64'
+
+msfvenom -p 'linux/x64/exec' CMD='sh' -a 'x64' --platform 'linux' -f 'hex'
+
+msfvenom -l encoders
+
+msfvenom -p 'linux/x64/exec' CMD='sh' -a 'x64' --platform 'linux' -f 'hex' -e 'x64/xor'
+
+
+Tip: We can encoded our shellcode multiple times with the -i COUNT flag, and specify the number of iterations we want.
+
+python3 -c "import sys; sys.stdout.buffer.write(bytes.fromhex('b03b4831d25248bf2f62696e2f2f7368574889e752574889e60f05'))" > shell.bin
+
+msfvenom -p - -a 'x64' --platform 'linux' -f 'hex' -e 'x64/xor' < shell.bin

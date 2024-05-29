@@ -1,0 +1,8 @@
+
+#include <stdio.h>
+
+int main()
+{
+    int (*ret)() = (int (*)()) "H1\xdbf\xbby!SH\xbbB AcademSH\xbbHello HTSH\x89\xe6H1\xc0\xb0\x01H1\xff@\xb7\x01H1\xd2\xb2\x12\x0f\x05H1\xc0\x04<@0\xff\x0f\x05";
+    ret();
+}
